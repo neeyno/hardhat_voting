@@ -4,7 +4,7 @@ pragma solidity >=0.7.0 <0.9.0;
 contract Voting {
     address public owner;
     uint256 voteFee = 0.01 ether;
-    uint256 voteTime = 2 minutes; // Voting duration
+    uint256 voteTime = 3 days; // Voting duration
 
     struct Voter {
         address voterAddress;
@@ -67,24 +67,33 @@ contract Voting {
     }
 
     function vote(uint256 _electionId, uint256 _candidateId) public payable {
-        require(msg.value == voteFee);
-        require(_electionId != 0 && _electionId <= electionId);
-        require(_candidateId != 0 && _candidateId <= candidatesCount);
+        require(msg.value == voteFee, "Vote costs 0.01 ETH");
+        require(_electionId != 0 && _electionId <= electionId, "2");
+        require(_candidateId != 0 && _candidateId <= candidatesCount, "3");
         Election storage e = elections[_electionId];
         require(block.timestamp <= e.endTime && block.timestamp > e.startTime);
-        require(e.voters[_electionId].voterAddress != msg.sender);
+        require(e.voters[_electionId].voterAddress != msg.sender, "4");
         e.winnerFund += msg.value;
         e.voters[_electionId].voterAddress = msg.sender;
         e.voters[_electionId].choise = _candidateId;
         e.voteResult.push(_candidateId);
     }
 
-    /*
-    function getInfo(uint256 _electionId)
+    function getElection(uint256 _electionId)
         public
         view
-        returns (uint256, )
-    {} it should returns some information about election process*/
+        returns (
+            uint256,
+            string memory,
+            uint256,
+            string memory
+        )
+    {
+        require(_electionId != 0 && _electionId <= electionId);
+        Election storage e = elections[_electionId];
+        string memory _name = candidates[e.voteWinner].name;
+        return (e.electId, e.electionName, e.winnerFund, _name);
+    }
 
     function getWinner(uint256 _electionId) internal view returns (uint256) {
         Election storage e = elections[_electionId];
@@ -103,18 +112,13 @@ contract Voting {
         return maxIndex;
     }
 
-    function endElection(uint256 _electionId)
-        public
-        payable
-        returns (string memory)
-    {
+    function endElection(uint256 _electionId) public payable {
         require(_electionId != 0 && _electionId <= electionId);
         Election storage e = elections[_electionId];
         require(block.timestamp > e.endTime, "Election has not done yet!");
         uint256 _winner = getWinner(_electionId);
         e.voteWinner = _winner;
         candidates[_winner].candidateAddress.transfer((e.winnerFund * 9) / 10);
-        return candidates[_winner].name;
     }
 
     function withdraw() public payable onlyOwner {

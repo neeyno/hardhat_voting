@@ -16,19 +16,45 @@ describe("Voting contract", function () {
             expect(voting.address).to.be.properAddress;
         })
 
-        it("should set the right owner", async () => {
+        it("should set the right owner", async function () {
             expect(await voting.owner()).to.equal(owner.address);
         })
     });
 
-    describe("Elections", () => {
-        it("should create a new election", async function () {
-            const election = await voting.newElection("electionN1")
-            console.log(election)
-            //expect().to.eq(1);
+    describe("Election", () => {
+
+        beforeEach(async function () {
+            await voting.newElection("electionN1");
+            await voting.addCandidate("testName", addr1.address);
+            // getElection = await voting.elections(1);
+            tx1 = await voting.connect(addr2).vote(1, 1, { value: ethers.utils.parseEther("0.01") });
+            //console.log(tx1);
+        });
+
+        it("creates a new election", async function () {
+            //await voting.newElection("electionN1");
+            const getElection = await voting.elections(1);
+            expect(getElection.electionName).to.eq("electionN1");
+            expect(getElection.electId).to.eq(1);
         })
-        //it should create a new election
+
+
+        it("should check a candidate", async function () {
+            //await voting.addCandidate("testName", addr1.address);
+            const candi1 = await voting.candidates(1);
+            expect(candi1.candidateAddress).to.eq(addr1.address);
+        })
+
+        it("performs a vote", async function () {
+            const contractBalance = await ethers.provider.getBalance(voting.address);
+            const getElection = await voting.elections(1);
+
+            expect(tx1.value).to.eq(contractBalance);
+            expect(contractBalance).to.eq(getElection.winnerFund)
+        })
     })
+
+
 
     // test vote
     // should allow to vote only once
