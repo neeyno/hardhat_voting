@@ -41,7 +41,7 @@ contract Voting {
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner);
+        require(msg.sender == owner, "only Owner");
         _;
     }
 
@@ -68,11 +68,20 @@ contract Voting {
 
     function vote(uint256 _electionId, uint256 _candidateId) public payable {
         require(msg.value == voteFee, "Vote costs 0.01 ETH");
-        require(_electionId != 0 && _electionId <= electionId, "2");
-        require(_candidateId != 0 && _candidateId <= candidatesCount, "3");
+        require(
+            _electionId != 0 && _electionId <= electionId,
+            "Invalid Election!"
+        );
+        require(
+            _candidateId != 0 && _candidateId <= candidatesCount,
+            "Invalid Candidate!"
+        );
         Election storage e = elections[_electionId];
         require(block.timestamp <= e.endTime && block.timestamp > e.startTime);
-        require(e.voters[_electionId].voterAddress != msg.sender, "4");
+        require(
+            e.voters[_electionId].voterAddress != msg.sender,
+            "You can vote only once!"
+        );
         e.winnerFund += msg.value;
         e.voters[_electionId].voterAddress = msg.sender;
         e.voters[_electionId].choise = _candidateId;

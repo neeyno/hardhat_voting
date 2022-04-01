@@ -24,45 +24,56 @@ describe("Voting contract", function () {
     describe("Election", () => {
 
         beforeEach(async function () {
+            // create election, add candidate, send vote tx
             await voting.newElection("electionN1");
             await voting.addCandidate("testName", addr1.address);
-            // getElection = await voting.elections(1);
             tx1 = await voting.connect(addr2).vote(1, 1, { value: ethers.utils.parseEther("0.01") });
             //console.log(tx1);
         });
 
         it("creates a new election", async function () {
-            //await voting.newElection("electionN1");
             const getElection = await voting.elections(1);
+
             expect(getElection.electionName).to.eq("electionN1");
             expect(getElection.electId).to.eq(1);
         })
 
+        it("requires correct Eth value to vote", async function () {
+            // send tx with incorrect Eth value 0.012
+            await expect(voting.connect(addr3).vote(1, 1, { value: ethers.utils.parseEther("0.012") })).to.be.revertedWith("Vote costs 0.01 ETH");
+        })
 
-        it("should check a candidate", async function () {
-            //await voting.addCandidate("testName", addr1.address);
+        it("should check that election exists", async function () {
+            // sending tx with Election that doesn't exist
+            await expect(voting.connect(addr2).vote(2, 1, { value: ethers.utils.parseEther("0.01") })).to.be.revertedWith("Invalid Election!");
+        })
+
+        it("should check that candidate exists", async function () {
             const candi1 = await voting.candidates(1);
+            // candidate 1 exists, candidate 2 doesn't
             expect(candi1.candidateAddress).to.eq(addr1.address);
+            await expect(voting.connect(addr2).vote(1, 2, { value: ethers.utils.parseEther("0.01") })).to.be.revertedWith("Invalid Candidate!");
         })
 
         it("performs a vote", async function () {
             const contractBalance = await ethers.provider.getBalance(voting.address);
             const getElection = await voting.elections(1);
-
+            // checking Election data difference
             expect(tx1.value).to.eq(contractBalance);
             expect(contractBalance).to.eq(getElection.winnerFund)
         })
+
+        it("should allow to vote only once", async function () {
+            // sending the same tx
+            await expect(voting.connect(addr2).vote(1, 1, { value: ethers.utils.parseEther("0.01") })
+            ).to.be.revertedWith("You can vote only once!")
+        })
+
     })
-
-
-
-    // test vote
-    // should allow to vote only once
-    // shoulr require 0,01 Eth to vote
-    //
 
     // test endElection
     // should define a winner of election
+    //should check election duration
     // should transfer 90%winnerFund to an election winner
     // should transfer 10%fee to owner
 });
