@@ -26,9 +26,9 @@ describe("Voting contract", function () {
         beforeEach(async function () {
             // create election, add candidate, send vote tx
             await voting.newElection("electionN1");
-            await voting.addCandidate("testName", addr1.address);
+            await voting.addCandidate("testCandidate", addr1.address);
             tx1 = await voting.connect(addr2).vote(1, 1, { value: ethers.utils.parseEther("0.01") });
-            //console.log(tx1);
+            //console.log();
         });
 
         it("creates a new election", async function () {
@@ -57,23 +57,68 @@ describe("Voting contract", function () {
 
         it("performs a vote", async function () {
             const contractBalance = await ethers.provider.getBalance(voting.address);
-            const getElection = await voting.elections(1);
+            const getFund = await voting.elections(1);
             // checking Election data difference
             expect(tx1.value).to.eq(contractBalance);
-            expect(contractBalance).to.eq(getElection.winnerFund)
+            expect(contractBalance).to.eq(getFund.winnerFund);
         })
 
         it("should allow to vote only once", async function () {
             // sending the same tx
             await expect(voting.connect(addr2).vote(1, 1, { value: ethers.utils.parseEther("0.01") })
-            ).to.be.revertedWith("You can vote only once!")
+            ).to.be.revertedWith("You can vote only once!");
         })
 
-    })
+        it("should check election duration", async function () {
+            await expect(voting.connect(addr2).endElection(1)).to.be.revertedWith("Election has not done yet!");
+            await network.provider.send("evm_increaseTime", [259140]);// 3days
+            await network.provider.send("evm_mine");
+            await expect(voting.connect(addr2).endElection(1)).to.be.revertedWith("Election has not done yet!");
+        })
 
-    // test endElection
-    // should define a winner of election
-    //should check election duration
-    // should transfer 90%winnerFund to an election winner
-    // should transfer 10%fee to owner
-});
+        it("stops an election", async function () {
+            //skipping 3 days
+            await network.provider.send("evm_increaseTime", [259200]);
+            await network.provider.send("evm_mine");
+            // stopping the election
+            await voting.connect(addr2).endElection(1);
+            //trying to vote in stopped election
+            await expect(voting.connect(addr3).vote(1, 1, { value: ethers.utils.parseEther("0.01") })
+            ).to.be.reverted;
+
+        })
+
+        it("should transfer winner fund", async function () {
+            //skipping 3 days
+            await network.provider.send("evm_increaseTime", [259200]);
+            await network.provider.send("evm_mine");
+            //checking winner balance
+            const getFund1 = await voting.elections(1);
+            const afterFee = (getFund1.winnerFund * 9) / 10; //90% of fund
+            await expect(await voting.connect(addr2).endElection(1))
+                .to.changeEtherBalance(addr1, afterFee);
+            // cheking winner name
+            const winner = await voting.getElection(1);
+            expect(winner[3]).to.equal("testCandidate");
+        })
+
+        it("shoild withdraw owner fund", async function () {
+            //skipping 3 days
+            await network.provider.send("evm_increaseTime", [259200]);
+            await network.provider.send("evm_mine");
+            await voting.connect(addr2).endElection(1);
+
+            //  withdraw: not owner - should be reverted
+            await expect(voting.connect(addr2).withdraw()).to.be.revertedWith("only Owner");
+            //  withdraw successfully: owner account
+            const balanceBefore = await ethers.provider.getBalance(voting.address);
+            await expect(() => voting.withdraw())
+                .to.changeEtherBalance(owner, balanceBefore);
+            const balanceAfter = await ethers.provider.getBalance(voting.address);
+            expect(balanceAfter).to.equal(0);
+
+        })
+        // should transfer 90%winnerFund to an election winner
+        // should transfer 10%fee to owner
+    })
+})

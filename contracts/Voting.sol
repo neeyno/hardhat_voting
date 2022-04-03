@@ -3,6 +3,7 @@ pragma solidity >=0.7.0 <0.9.0;
 
 contract Voting {
     address public owner;
+    uint256 ownerFund = 0;
     uint256 voteFee = 0.01 ether;
     uint256 voteTime = 3 days; // Voting duration
 
@@ -127,10 +128,13 @@ contract Voting {
         require(block.timestamp > e.endTime, "Election has not done yet!");
         uint256 _winner = getWinner(_electionId);
         e.voteWinner = _winner;
-        candidates[_winner].candidateAddress.transfer((e.winnerFund * 9) / 10);
+        uint256 _afterFee = (e.winnerFund * 9) / 10;
+        candidates[_winner].candidateAddress.transfer(_afterFee);
+        ownerFund += e.winnerFund - _afterFee;
     }
 
     function withdraw() public payable onlyOwner {
-        payable(msg.sender).transfer(address(this).balance);
+        payable(msg.sender).transfer(ownerFund);
+        ownerFund = 0;
     }
 }
