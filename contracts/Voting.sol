@@ -2,139 +2,123 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 contract Voting {
+    uint16 public numVotings;
+    uint16 public numCandidates;
     address public owner;
-    uint256 ownerFund = 0;
-    uint256 voteFee = 0.01 ether;
-    uint256 voteTime = 3 days; // Voting duration
+    uint256 feeFund; // Fees fund of the owner
 
-    struct Voter {
-        address voterAddress;
-        uint256 choise;
+    // stores voting data
+    struct VotingData {
+        bool finished; // if true, that voting already finished
+        mapping(address => bool) voted; // tracks who's already voted
+        uint16[] results; // stores user's votes
+        uint32 endTime; // timestamp - end of voting
+        string votingName;
     }
+    mapping(uint16 => VotingData) votings;
 
-    // store candidates
-    mapping(uint256 => Candidate) public candidates;
-    uint256 public candidatesCount = 0;
-
+    // stores candidates
     struct Candidate {
-        uint256 id;
-        string name;
-        address payable candidateAddress;
+        string name; // candidate's name
+        address payable candidateAddr; //candidate's address
     }
-
-    // store elections
-    mapping(uint256 => Election) public elections;
-    uint256 public electionId = 0;
-
-    struct Election {
-        uint256 electId;
-        string electionName;
-        uint256 startTime;
-        uint256 endTime;
-        uint256 winnerFund;
-        mapping(uint256 => Voter) voters;
-        uint256[] voteResult;
-        uint256 voteWinner;
-    }
+    mapping(uint16 => Candidate) public candidates;
 
     constructor() {
         owner = msg.sender;
+        //candidates[0] = Candidate("owner", payable(owner));
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "only Owner");
+        require(msg.sender == owner, "Only Owner");
         _;
     }
 
-    function addCandidate(string memory _name, address _candidateAddress)
+    // Add a new candidate
+    function addCandidate(string memory _name, address _candidateAddr)
         public
         onlyOwner
     {
-        candidatesCount++;
-        candidates[candidatesCount] = Candidate(
-            candidatesCount,
-            _name,
-            payable(_candidateAddress)
-        );
+        candidates[++numCandidates] = Candidate(_name, payable(_candidateAddr));
     }
 
-    function newElection(string memory _electionName) public onlyOwner {
-        electionId++;
-        Election storage e = elections[electionId];
-        e.electId = electionId;
-        e.electionName = _electionName;
-        e.startTime = block.timestamp;
-        e.endTime = e.startTime + voteTime;
+    // Add a new voting
+    function addVoting(string memory _name) public onlyOwner {
+        numVotings++;
+        votings[numVotings].votingName = _name;
+        //The voting period will last 3 days
+        votings[numVotings].endTime = uint32(block.timestamp + 3 days);
     }
 
-    function vote(uint256 _electionId, uint256 _candidateId) public payable {
-        require(msg.value == voteFee, "Vote costs 0.01 ETH");
-        require(
-            _electionId != 0 && _electionId <= electionId,
-            "Invalid Election!"
-        );
-        require(
-            _candidateId != 0 && _candidateId <= candidatesCount,
-            "Invalid Candidate!"
-        );
-        Election storage e = elections[_electionId];
-        require(block.timestamp <= e.endTime && block.timestamp > e.startTime);
-        require(
-            e.voters[_electionId].voterAddress != msg.sender,
-            "You can vote only once!"
-        );
-        e.winnerFund += msg.value;
-        e.voters[_electionId].voterAddress = msg.sender;
-        e.voters[_electionId].choise = _candidateId;
-        e.voteResult.push(_candidateId);
+    // Choose voting(_votingId) and give your vote to candidate(_candidateId)
+    function vote(uint16 _votingId, uint16 _candidateId) public payable {
+        require(msg.value == 0.01 ether, "0.01 Eth"); //Vote costs 0.01 eth
+        require(_votingId <= numVotings, "Invalid id");
+        require(_candidateId <= numCandidates, "Invalid candidate id");
+        VotingData storage v = votings[_votingId];
+        require(block.timestamp <= v.endTime, "Time is over");
+        require(!v.voted[msg.sender], "You've already voted");
+        v.voted[msg.sender] = true; // mark a user as voted
+        v.results.push(_candidateId); // push chosen candidate id to the array
     }
 
-    function getElection(uint256 _electionId)
+    // Finish voting
+    // The function will transfer 90% of the fund to a winner and count 10% to the owner
+    function finishVoting(uint16 _votingId) public {
+        require(_votingId <= numVotings, "Invalid id");
+        VotingData storage v = votings[_votingId];
+        require(block.timestamp > v.endTime, "Await");
+        require(!v.finished, "Finished");
+        v.finished = true; // mark the voting as finished
+        uint256 _fund = v.results.length * 10**15; // calculates 1/10 of the fund
+        candidates[getWinner(v.results)].candidateAddr.transfer(_fund * 9); // 90%
+        feeFund += _fund; // 10%
+    }
+
+    // Get information about any voting
+    function getVoting(uint16 _votingId)
         public
         view
         returns (
-            uint256,
+            uint16,
             string memory,
             uint256,
-            string memory
+            uint16,
+            uint32,
+            bool
         )
     {
-        require(_electionId != 0 && _electionId <= electionId);
-        Election storage e = elections[_electionId];
-        string memory _name = candidates[e.voteWinner].name;
-        return (e.electId, e.electionName, e.winnerFund, _name);
+        VotingData storage v = votings[_votingId];
+        return (
+            _votingId, // voting id
+            v.votingName, // voting name
+            v.results.length, // number of participants
+            getWinner(v.results), // winner (candidate id)
+            v.endTime, // end timestamp
+            v.finished // retunrs state( if true - finished )
+        );
     }
 
-    function getWinner(uint256 _electionId) internal view returns (uint256) {
-        Election storage e = elections[_electionId];
-        uint256[] memory count;
-        count = new uint256[](candidatesCount + 1);
-        uint256 number;
-        uint256 maxIndex = 0;
+    // Withdraw fee fund at any time
+    // Only owner able to call this function
+    function withdrawFee() public onlyOwner {
+        payable(msg.sender).transfer(feeFund);
+        feeFund = 0;
+    }
 
-        for (uint256 i = 0; i < e.voteResult.length; i += 1) {
-            number = e.voteResult[i];
-            count[number] = (count[number]) + 1;
+    // Calculates a winner from passed array
+    function getWinner(uint16[] memory _results) private view returns (uint16) {
+        uint16[] memory count;
+        count = new uint16[](numCandidates + 1);
+        uint16 number;
+        uint16 maxIndex;
+        for (uint256 i = 0; i < _results.length; ++i) {
+            number = _results[i];
+            count[number] += 1;
             if (count[number] > count[maxIndex]) {
                 maxIndex = number;
             }
         }
-        return maxIndex;
-    }
-
-    function endElection(uint256 _electionId) public payable {
-        require(_electionId != 0 && _electionId <= electionId);
-        Election storage e = elections[_electionId];
-        require(block.timestamp > e.endTime, "Election has not done yet!");
-        uint256 _winner = getWinner(_electionId);
-        e.voteWinner = _winner;
-        uint256 _afterFee = (e.winnerFund * 9) / 10;
-        candidates[_winner].candidateAddress.transfer(_afterFee);
-        ownerFund += e.winnerFund - _afterFee;
-    }
-
-    function withdraw() public payable onlyOwner {
-        payable(msg.sender).transfer(ownerFund);
-        ownerFund = 0;
+        return maxIndex; // returns the most frequent number(candidate id)
     }
 }

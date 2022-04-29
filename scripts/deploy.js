@@ -1,17 +1,16 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-    const [deployer] = await ethers.getSigners()
-    console.log(`Deploying contracts with the account: ${deployer.address}`)
+    const [deployer] = await ethers.getSigners();
+    console.log(`Deploying contracts with the account: ${deployer.address}`);
 
     const balance = await deployer.getBalance();
-    console.log(`Account balance: ${balance.toString()}`)
+    console.log(`Account balance: ${balance.toString()}`);
 
-    const Voting = await ethers.getContractFactory('Voting')
+    const Voting = await ethers.getContractFactory('Voting');
     const voting = await Voting.deploy();
-
     await voting.deployed();
-    console.log(`Voting deployed to: ${voting.address}`)
+    console.log(`Voting deployed to: ${voting.address}`);
 }
 
 main()
