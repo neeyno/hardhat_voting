@@ -1,5 +1,5 @@
 # Voting
-The voting smart contract consists of creating a new title for the vote. After that, candidates can be chosen and voted on. The cost of voting is 0.01 Eth. The owner can use the project's functionality to preload or add candidates. The voting will take place over the course of three days. After this period, any user can finish voting and define the winner.
+The voting smart contract represents of creating a new title for the vote. After that, candidates can be chosen and voted on. The cost of voting is 0.01 Eth. The owner can use the project's functionality to preload or add candidates. The voting will take place over the course of three days. After this period, any user can finish voting and define the winner.
 
 # QuickStart
 Run
