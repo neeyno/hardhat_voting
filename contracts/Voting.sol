@@ -34,7 +34,9 @@ contract Voting {
         _;
     }
 
-    // Add a new candidate
+    /**
+     * Add a new candidate
+     */
     function addCandidate(string memory _name, address _candidateAddr)
         public
         onlyOwner
@@ -42,15 +44,19 @@ contract Voting {
         candidates[++numCandidates] = Candidate(_name, payable(_candidateAddr));
     }
 
-    // Add a new voting
+    /**
+     * Add a new voting. The voting period will last 3 days
+     */
     function addVoting(string memory _name) public onlyOwner {
         numVotings++;
         votings[numVotings].votingName = _name;
-        //The voting period will last 3 days
+        //
         votings[numVotings].endTime = uint32(block.timestamp + 3 days);
     }
 
-    // Choose voting(_votingId) and give your vote to candidate(_candidateId)
+    /**
+     * Choose voting(_votingId) and give your vote to candidate(_candidateId)
+     */
     function vote(uint16 _votingId, uint16 _candidateId) public payable {
         require(msg.value == 0.01 ether, "0.01 Eth"); //Vote costs 0.01 eth
         require(_votingId <= numVotings, "Invalid id");
@@ -62,8 +68,10 @@ contract Voting {
         v.results.push(_candidateId); // push chosen candidate id to the array
     }
 
-    // Finish voting
-    // The function will transfer 90% of the fund to a winner and count 10% to the owner
+    /**
+     * Finish voting.
+     * The function transfers 90% of the fund to a winner and counts 10% to the owner
+     */
     function finishVoting(uint16 _votingId) public {
         require(_votingId <= numVotings, "Invalid id");
         VotingData storage v = votings[_votingId];
@@ -75,7 +83,9 @@ contract Voting {
         feeFund += _fund; // 10%
     }
 
-    // Get information about any voting
+    /**
+     * Returns info about a single voting.
+     */
     function getVoting(uint16 _votingId)
         public
         view
@@ -99,14 +109,19 @@ contract Voting {
         );
     }
 
-    // Withdraw fee fund at any time
-    // Only owner able to call this function
+    /**
+     * Withdraw fee fund at any time.
+     * Only owner able to call this function
+     */
     function withdrawFee() public onlyOwner {
         payable(msg.sender).transfer(feeFund);
         feeFund = 0;
     }
 
-    // Calculates a winner from passed array
+    /**
+     * Calculates a winner from passed array.
+     * Returns the most frequent number(candidate id)
+     */
     function getWinner(uint16[] memory _results) private view returns (uint16) {
         uint16[] memory count;
         count = new uint16[](numCandidates + 1);
@@ -119,6 +134,6 @@ contract Voting {
                 maxIndex = number;
             }
         }
-        return maxIndex; // returns the most frequent number(candidate id)
+        return maxIndex;
     }
 }
